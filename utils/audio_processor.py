@@ -1,4 +1,5 @@
 import os
+import shutil
 import yt_dlp
 from pydub import AudioSegment
 
@@ -15,36 +16,33 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # ============================================================
 # FFMPEG CONFIGURATION
 # ============================================================
+# Resolution order:
+#   1. FFMPEG_DIR environment variable (optional manual override)
+#   2. ffmpeg / ffprobe found on system PATH (works on Streamlit
+#      Cloud via packages.txt, and locally once ffmpeg is on PATH)
 
-FFMPEG_DIR = (
-    r"C:\Users\dell\AppData\Local\Microsoft\WinGet\Packages"
-    r"\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe"
-    r"\ffmpeg-8.1.2-full_build\bin"
-)
+FFMPEG_DIR = os.getenv("FFMPEG_DIR")
 
-FFMPEG_PATH = os.path.join(
-    FFMPEG_DIR,
-    "ffmpeg.exe"
-)
-
-FFPROBE_PATH = os.path.join(
-    FFMPEG_DIR,
-    "ffprobe.exe"
-)
-
+if FFMPEG_DIR:
+    FFMPEG_PATH = os.path.join(FFMPEG_DIR, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    FFPROBE_PATH = os.path.join(FFMPEG_DIR, "ffprobe.exe" if os.name == "nt" else "ffprobe")
+else:
+    FFMPEG_PATH = shutil.which("ffmpeg")
+    FFPROBE_PATH = shutil.which("ffprobe")
 
 # Check FFmpeg
-if not os.path.exists(FFMPEG_PATH):
+if not FFMPEG_PATH or not os.path.exists(FFMPEG_PATH):
     raise FileNotFoundError(
-        f"FFmpeg not found at:\n{FFMPEG_PATH}"
+        "FFmpeg not found. Install it and ensure it's on your system PATH, "
+        "or set the FFMPEG_DIR environment variable to its folder."
     )
 
 # Check FFprobe
-if not os.path.exists(FFPROBE_PATH):
+if not FFPROBE_PATH or not os.path.exists(FFPROBE_PATH):
     raise FileNotFoundError(
-        f"FFprobe not found at:\n{FFPROBE_PATH}"
+        "FFprobe not found. Install it and ensure it's on your system PATH, "
+        "or set the FFMPEG_DIR environment variable to its folder."
     )
-
 
 # Tell pydub where FFmpeg is
 AudioSegment.converter = FFMPEG_PATH
@@ -76,8 +74,8 @@ def download_youtube_audio(url: str) -> str:
         # Output filename
         "outtmpl": output_path,
 
-        # FFmpeg location
-        "ffmpeg_location": FFMPEG_DIR,
+        # FFmpeg location (folder containing ffmpeg/ffprobe binaries)
+        "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
 
         # Node.js JavaScript runtime
         "js_runtimes": {
