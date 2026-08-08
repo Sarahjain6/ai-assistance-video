@@ -79,11 +79,12 @@ def download_youtube_audio(url: str) -> str:
 
         # Bypass YouTube's JS signature challenge by using
         # the Android client first, falling back to web
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "web"],
-            }
-        },
+       "extractor_args": {
+    "youtube": {
+        "player_client": ["tv", "android", "web"],
+        "player_skip": ["webpage", "configs"],
+    }
+},
 
         # Convert audio to WAV
         "postprocessors": [
