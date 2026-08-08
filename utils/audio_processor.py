@@ -77,9 +77,12 @@ def download_youtube_audio(url: str) -> str:
         # FFmpeg location (folder containing ffmpeg/ffprobe binaries)
         "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
 
-        # Node.js JavaScript runtime
-        "js_runtimes": {
-            "node": {}
+        # Bypass YouTube's JS signature challenge by using
+        # the Android client first, falling back to web
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+            }
         },
 
         # Convert audio to WAV
