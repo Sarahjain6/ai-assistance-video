@@ -95,11 +95,10 @@ def download_youtube_audio(url: str) -> str:
     "outtmpl": output_path,
     "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
     "extractor_args": {
-        "youtube": {
-            "player_client": ["tv", "android", "web"],
-            "player_skip": ["webpage", "configs"],
-        }
-    },
+    "youtube": {
+        "player_client": ["web"],
+    }
+},
     "cookiefile": COOKIE_FILE,
     "proxy": PROXY_URL,          # <-- add this line
     "postprocessors": [
