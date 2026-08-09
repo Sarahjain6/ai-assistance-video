@@ -72,6 +72,7 @@ if _cookie_b64:
 
 print(f"DEBUG: cookie secret detected = {_cookie_b64 is not None}")
 print(f"DEBUG: cookie file created = {COOKIE_FILE is not None}")
+PROXY_URL = os.getenv("PROXY_URL")
 # ============================================================
 # DOWNLOAD YOUTUBE AUDIO
 # ============================================================
@@ -90,43 +91,24 @@ def download_youtube_audio(url: str) -> str:
     )
 
     ydl_opts = {
-        # Best available audio
-        "format": "bestaudio/best",
-
-        # Output filename
-        "outtmpl": output_path,
-
-        # FFmpeg location (folder containing ffmpeg/ffprobe binaries)
-        "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
-
-        # Try multiple player clients to work around YouTube blocks
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["tv", "android", "web"],
-                "player_skip": ["webpage", "configs"],
-            }
-        },
-
-        # Use cookies if available (None is fine — yt-dlp just skips it)
-        "cookiefile": COOKIE_FILE,
-
-        # Convert audio to WAV
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "wav",
-            }
-        ],
-
-        # Don't download playlists
-        "noplaylist": True,
-
-        # Show useful output
-        "quiet": False,
-
-        # Certificate option
-        "nocheckcertificate": True,
-    }
+    "format": "bestaudio/best",
+    "outtmpl": output_path,
+    "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["tv", "android", "web"],
+            "player_skip": ["webpage", "configs"],
+        }
+    },
+    "cookiefile": COOKIE_FILE,
+    "proxy": PROXY_URL,          # <-- add this line
+    "postprocessors": [
+        {"key": "FFmpegExtractAudio", "preferredcodec": "wav"}
+    ],
+    "noplaylist": True,
+    "quiet": False,
+    "nocheckcertificate": True,
+}
 
     try:
         print("Downloading YouTube audio...")
