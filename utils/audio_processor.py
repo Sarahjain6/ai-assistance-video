@@ -97,7 +97,7 @@ def download_youtube_audio(url: str) -> str:
     "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
     "extractor_args": {
     "youtube": {
-        "player_client": ["web"],
+        "player_client": ["web", "android", "tv"],
     }
 },
     "cookiefile": COOKIE_FILE,
