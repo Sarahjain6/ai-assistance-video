@@ -70,7 +70,8 @@ if _cookie_b64:
     _tmp.close()
     COOKIE_FILE = _tmp.name
 
-
+print(f"DEBUG: cookie secret detected = {_cookie_b64 is not None}")
+print(f"DEBUG: cookie file created = {COOKIE_FILE is not None}")
 # ============================================================
 # DOWNLOAD YOUTUBE AUDIO
 # ============================================================
