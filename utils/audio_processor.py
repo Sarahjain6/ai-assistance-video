@@ -92,7 +92,7 @@ def download_youtube_audio(url: str) -> str:
     )
 
     ydl_opts = {
-    "format": "bestaudio[ext=m4a]/bestaudio/best",
+    "format": "best",
     "outtmpl": output_path,
     "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
     "extractor_args": {
