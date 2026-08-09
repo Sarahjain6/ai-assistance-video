@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 import yt_dlp
 from pydub import AudioSegment
 
@@ -51,6 +52,29 @@ AudioSegment.ffprobe = FFPROBE_PATH
 
 
 # ============================================================
+# YOUTUBE COOKIES (optional, for bypassing 403 blocks)
+# ============================================================
+# On Streamlit Cloud, set a secret called YOUTUBE_COOKIES containing
+# the full contents of a cookies.txt file exported from a logged-in
+# YouTube session. Locally, this is optional — omit it and yt-dlp
+# will just proceed without cookies.
+
+COOKIE_FILE = None
+_cookie_content = os.getenv("YOUTUBE_COOKIES")
+
+if _cookie_content:
+    _tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".txt",
+        delete=False,
+        encoding="utf-8",
+    )
+    _tmp.write(_cookie_content)
+    _tmp.close()
+    COOKIE_FILE = _tmp.name
+
+
+# ============================================================
 # DOWNLOAD YOUTUBE AUDIO
 # ============================================================
 
@@ -77,14 +101,16 @@ def download_youtube_audio(url: str) -> str:
         # FFmpeg location (folder containing ffmpeg/ffprobe binaries)
         "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
 
-        # Bypass YouTube's JS signature challenge by using
-        # the Android client first, falling back to web
-       "extractor_args": {
-    "youtube": {
-        "player_client": ["tv", "android", "web"],
-        "player_skip": ["webpage", "configs"],
-    }
-},
+        # Try multiple player clients to work around YouTube blocks
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tv", "android", "web"],
+                "player_skip": ["webpage", "configs"],
+            }
+        },
+
+        # Use cookies if available (None is fine — yt-dlp just skips it)
+        "cookiefile": COOKIE_FILE,
 
         # Convert audio to WAV
         "postprocessors": [
