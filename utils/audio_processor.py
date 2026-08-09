@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import yt_dlp
 from pydub import AudioSegment
+import base64
 
 
 # ============================================================
@@ -59,7 +60,7 @@ AudioSegment.ffprobe = FFPROBE_PATH
 # YouTube session. Locally, this is optional — omit it and yt-dlp
 # will just proceed without cookies.
 
-import base64
+
 
 COOKIE_FILE = None
 _cookie_b64 = os.getenv("YOUTUBE_COOKIES_B64")
