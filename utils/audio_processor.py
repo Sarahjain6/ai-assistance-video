@@ -59,17 +59,14 @@ AudioSegment.ffprobe = FFPROBE_PATH
 # YouTube session. Locally, this is optional — omit it and yt-dlp
 # will just proceed without cookies.
 
-COOKIE_FILE = None
-_cookie_content = os.getenv("YOUTUBE_COOKIES")
+import base64
 
-if _cookie_content:
-    _tmp = tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".txt",
-        delete=False,
-        encoding="utf-8",
-    )
-    _tmp.write(_cookie_content)
+COOKIE_FILE = None
+_cookie_b64 = os.getenv("YOUTUBE_COOKIES_B64")
+
+if _cookie_b64:
+    _tmp = tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False)
+    _tmp.write(base64.b64decode(_cookie_b64))
     _tmp.close()
     COOKIE_FILE = _tmp.name
 
