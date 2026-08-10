@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import re
 from dotenv import load_dotenv
 from utils.audio_processor import process_input, get_youtube_transcript
 from core.transcriber import transcribe_all
@@ -329,6 +330,12 @@ def render_step_bar(label: str, key: str, icon: str):
         <span>{icon} {label}</span>
     </div>""", unsafe_allow_html=True)
 
+def is_youtube_url(text: str) -> bool:
+    """
+    Quick check whether the given input string is a YouTube URL.
+    """
+    return bool(re.search(r"(youtube\.com|youtu\.be)", text.strip()))
+
 # ─── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown('<div class="hero-title" style="font-size:1.6rem">🎬 AI<br>Video</div>', unsafe_allow_html=True)
@@ -339,13 +346,6 @@ with st.sidebar:
     source = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4")
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
-
-    prefer_whisper = st.checkbox(
-        "Prefer Whisper transcription over YouTube captions",
-        value=False,
-        help="By default, YouTube captions are used when available (faster, no transcription cost). "
-             "Enable this to always run Whisper instead, e.g. for higher accuracy on technical content.",
-    )
 
     run_btn = st.button("⚡  Analyse", use_container_width=True)
 
@@ -393,7 +393,7 @@ if run_btn:
             transcript = None
             transcript_source = "whisper"
 
-            if is_youtube_url(source) and not prefer_whisper:
+            if is_youtube_url(source):
                 transcript = get_youtube_transcript(source)
                 if transcript:
                     transcript_source = "captions"
