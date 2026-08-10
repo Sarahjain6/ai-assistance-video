@@ -8,45 +8,49 @@ import os
 
 
 def get_llm():
-    return ChatMistralAI(model = "mistral-small-latest", mistral_api_key = os.getenv("MISTRAL_API_KEY"),temperature=0.2)
+    return ChatMistralAI(model="mistral-small-latest", mistral_api_key=os.getenv("MISTRAL_API_KEY"), temperature=0.2)
 
 
-
-def build_chain(system_prompt : str):
+def build_chain(system_prompt: str):
     llm = get_llm()
     return (
-        RunnablePassthrough() | RunnableLambda(lambda x : {"text" : x}) |ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human","{text}"),
-    ]) | llm |StrOutputParser()
+        RunnablePassthrough() | RunnableLambda(lambda x: {"text": x}) | ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{text}"),
+        ]) | llm | StrOutputParser()
     )
 
-def extract_action_items(transcript:str)->str:
+
+def extract_action_items(transcript: str) -> str:
     chain = build_chain(
-         "You are an expert meeting analyst. From the meeting transcript, "
-        "extract all action items. For each provide:\n"
-        "- Task description\n"
-        "- Owner (who is responsible)\n"
-        "- Deadline (if mentioned, else write 'Not specified')\n\n"
-        "Format as a numbered list. If none found say 'No action items found.'"
+        "You are an expert content analyst. From this video transcript, "
+        "extract actionable takeaways — things the viewer is told or "
+        "recommended to do, try, avoid, or follow up on. For each provide:\n"
+        "- Action/recommendation\n"
+        "- Who it's for or who suggested it (if mentioned, else 'General audience')\n"
+        "- Any timeframe or condition mentioned (if none, write 'Not specified')\n\n"
+        "Format as a numbered list. If the transcript contains no actionable "
+        "takeaways, say exactly: 'No action items found.'"
     )
-
     return chain.invoke(transcript)
 
 
 def extract_key_decisions(transcript: str) -> str:
     chain = build_chain(
-        "You are an expert meeting analyst. From the meeting transcript, "
-        "extract all key decisions made. Format as a numbered list. "
-        "If none found say 'No key decisions found.'"
+        "You are an expert content analyst. From this video transcript, "
+        "extract the key points, conclusions, or claims the speaker "
+        "asserts or settles on. Format as a numbered list. "
+        "If none are found, say exactly: 'No key decisions found.'"
     )
     return chain.invoke(transcript)
 
 
 def extract_questions(transcript: str) -> str:
     chain = build_chain(
-        "From the meeting transcript, extract all unresolved questions "
-        "or topics needing follow-up. Format as a numbered list. "
-        "If none found say 'No open questions found.'"
+        "From this video transcript, extract any questions raised but not "
+        "answered, topics mentioned as needing further explanation, or "
+        "areas the speaker says they'll cover later / didn't get to. "
+        "Format as a numbered list. If none are found, say exactly: "
+        "'No open questions found.'"
     )
     return chain.invoke(transcript)
