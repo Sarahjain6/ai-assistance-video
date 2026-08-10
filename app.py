@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 from dotenv import load_dotenv
-from utils.audio_processor import process_input
+from utils.audio_processor import process_input, is_youtube_url, get_youtube_transcript
 from core.transcriber import transcribe_all
 from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
@@ -340,6 +340,13 @@ with st.sidebar:
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
+    prefer_whisper = st.checkbox(
+        "Prefer Whisper transcription over YouTube captions",
+        value=False,
+        help="By default, YouTube captions are used when available (faster, no transcription cost). "
+             "Enable this to always run Whisper instead, e.g. for higher accuracy on technical content.",
+    )
+
     run_btn = st.button("⚡  Analyse", use_container_width=True)
 
     if st.session_state.pipeline_done:
@@ -379,13 +386,28 @@ if run_btn:
             with progress_placeholder.container():
                 st.info("⚙️ Pipeline running — see sidebar for live status…")
 
+            # ── Audio / Transcript ──────────────────────────────────────────
+            # If the source is a YouTube URL and captions are available, use
+            # them directly and skip the Whisper transcription step entirely.
             update_step("audio", "active")
-            chunks = process_input(source)
-            update_step("audio", "done")
+            transcript = None
+            transcript_source = "whisper"
 
-            update_step("transcript", "active")
-            transcript = transcribe_all(chunks, language)
-            update_step("transcript", "done")
+            if is_youtube_url(source) and not prefer_whisper:
+                transcript = get_youtube_transcript(source)
+                if transcript:
+                    transcript_source = "captions"
+
+            if transcript:
+                update_step("audio", "done")
+                update_step("transcript", "done")
+            else:
+                chunks = process_input(source)
+                update_step("audio", "done")
+
+                update_step("transcript", "active")
+                transcript = transcribe_all(chunks, language)
+                update_step("transcript", "done")
 
             update_step("title", "active")
             title = generate_title(transcript)
@@ -408,6 +430,7 @@ if run_btn:
             st.session_state.result = {
                 "title": title,
                 "transcript": transcript,
+                "transcript_source": transcript_source,
                 "summary": summary,
                 "action_items": action_items,
                 "key_decisions": decisions,
@@ -430,13 +453,20 @@ if run_btn:
 if st.session_state.result:
     r = st.session_state.result
 
+    source_badge = (
+        '<span class="badge badge-cyan">📄 YouTube Captions</span>'
+        if r.get("transcript_source") == "captions"
+        else '<span class="badge badge-purple">🎙️ Whisper Transcription</span>'
+    )
+
     # Title banner
     st.markdown(f"""
     <div class="card">
         <div class="card-title">📌 Session Title</div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:700;color:var(--text)">
+        <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:0.5rem">
             {r['title']}
         </div>
+        {source_badge}
     </div>""", unsafe_allow_html=True)
 
     # Top row: summary + transcript

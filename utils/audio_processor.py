@@ -1,9 +1,13 @@
 import os
+import re
 import shutil
 import tempfile
 import yt_dlp
 from pydub import AudioSegment
 import base64
+
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 
 # ============================================================
@@ -74,6 +78,63 @@ if _cookie_b64:
 print(f"DEBUG: cookie secret detected = {_cookie_b64 is not None}")
 print(f"DEBUG: cookie file created = {COOKIE_FILE is not None}")
 PROXY_URL = os.getenv("PROXY_URL")
+
+
+# ============================================================
+# YOUTUBE TRANSCRIPT (FAST PATH — avoids yt-dlp bot-check entirely)
+# ============================================================
+# Tries to fetch YouTube's own captions directly. This hits a totally
+# different endpoint than yt-dlp's video download, so it is NOT subject
+# to the "Sign in to confirm you're not a bot" block. Use this first;
+# only fall back to download_youtube_audio() + Whisper if the video
+# has no captions available.
+
+def extract_video_id(url: str) -> str:
+    """
+    Extract the YouTube video ID from common URL formats
+    (youtube.com/watch?v=..., youtu.be/..., etc.).
+    """
+    patterns = [
+        r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",
+        r"youtu\.be\/([0-9A-Za-z_-]{11})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    raise ValueError(f"Could not extract video ID from URL:\n{url}")
+
+
+def get_youtube_transcript(url: str):
+    """
+    Try to fetch the YouTube caption transcript directly, without
+    downloading audio or invoking yt-dlp at all.
+
+    Returns:
+        Full transcript text (str) if captions exist, otherwise None.
+        Caller should fall back to download_youtube_audio() + Whisper
+        when this returns None.
+    """
+    try:
+        video_id = extract_video_id(url)
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        text = " ".join(segment["text"] for segment in transcript_list)
+
+        if not text.strip():
+            return None
+
+        print(f"Transcript fetched via captions API ({len(text)} chars).")
+        return text
+
+    except (TranscriptsDisabled, NoTranscriptFound):
+        print("No captions available for this video — will fall back to audio download.")
+        return None
+
+    except Exception as e:
+        print(f"Transcript API failed unexpectedly: {e} — will fall back to audio download.")
+        return None
+
+
 # ============================================================
 # DOWNLOAD YOUTUBE AUDIO
 # ============================================================
@@ -92,23 +153,23 @@ def download_youtube_audio(url: str) -> str:
     )
 
     ydl_opts = {
-    "format": "best",
-    "outtmpl": output_path,
-    "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
-    "extractor_args": {
-    "youtube": {
-        "player_client": ["web", "android", "tv"],
+        "format": "best",
+        "outtmpl": output_path,
+        "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "android", "tv"],
+            }
+        },
+        "cookiefile": COOKIE_FILE,
+        "proxy": PROXY_URL,
+        "postprocessors": [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "wav"}
+        ],
+        "noplaylist": True,
+        "quiet": False,
+        "nocheckcertificate": True,
     }
-},
-    "cookiefile": COOKIE_FILE,
-    "proxy": PROXY_URL,          # <-- add this line
-    "postprocessors": [
-        {"key": "FFmpegExtractAudio", "preferredcodec": "wav"}
-    ],
-    "noplaylist": True,
-    "quiet": False,
-    "nocheckcertificate": True,
-}
 
     try:
         print("Downloading YouTube audio...")
