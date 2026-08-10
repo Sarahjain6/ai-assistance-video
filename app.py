@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 from dotenv import load_dotenv
-from utils.audio_processor import process_input, is_youtube_url, get_youtube_transcript
+from utils.audio_processor import process_input, get_youtube_transcript
 from core.transcriber import transcribe_all
 from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
