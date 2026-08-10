@@ -110,6 +110,10 @@ def get_youtube_transcript(url: str):
     Try to fetch the YouTube caption transcript directly, without
     downloading audio or invoking yt-dlp at all.
 
+    Compatible with both:
+      - youtube-transcript-api < 1.0  (classmethod: get_transcript)
+      - youtube-transcript-api >= 1.0 (instance method: fetch)
+
     Returns:
         Full transcript text (str) if captions exist, otherwise None.
         Caller should fall back to download_youtube_audio() + Whisper
@@ -117,8 +121,17 @@ def get_youtube_transcript(url: str):
     """
     try:
         video_id = extract_video_id(url)
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join(segment["text"] for segment in transcript_list)
+
+        # Newer API (v1.x+): instantiate, then call .fetch()
+        if hasattr(YouTubeTranscriptApi, "fetch"):
+            api = YouTubeTranscriptApi()
+            fetched = api.fetch(video_id)
+            segments = fetched.to_raw_data()
+        # Older API (< v1.0): classmethod get_transcript()
+        else:
+            segments = YouTubeTranscriptApi.get_transcript(video_id)
+
+        text = " ".join(segment["text"] for segment in segments)
 
         if not text.strip():
             return None
