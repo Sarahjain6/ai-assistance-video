@@ -64,8 +64,6 @@ AudioSegment.ffprobe = FFPROBE_PATH
 # YouTube session. Locally, this is optional — omit it and yt-dlp
 # will just proceed without cookies.
 
-
-
 COOKIE_FILE = None
 _cookie_b64 = os.getenv("YOUTUBE_COOKIES_B64")
 
@@ -81,13 +79,19 @@ PROXY_URL = os.getenv("PROXY_URL")
 
 
 # ============================================================
-# YOUTUBE TRANSCRIPT (FAST PATH — avoids yt-dlp bot-check entirely)
+# URL HELPERS
 # ============================================================
-# Tries to fetch YouTube's own captions directly. This hits a totally
-# different endpoint than yt-dlp's video download, so it is NOT subject
-# to the "Sign in to confirm you're not a bot" block. Use this first;
-# only fall back to download_youtube_audio() + Whisper if the video
-# has no captions available.
+
+def is_youtube_url(source: str) -> bool:
+    """
+    Quick check for whether a source string is a YouTube URL
+    (as opposed to a local file path).
+    """
+    source = source.strip()
+    return bool(
+        re.match(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/", source)
+    )
+
 
 def extract_video_id(url: str) -> str:
     """
@@ -104,6 +108,16 @@ def extract_video_id(url: str) -> str:
             return match.group(1)
     raise ValueError(f"Could not extract video ID from URL:\n{url}")
 
+
+# ============================================================
+# YOUTUBE TRANSCRIPT (FAST PATH — avoids yt-dlp bot-check entirely)
+# ============================================================
+# Tries to fetch YouTube's own captions directly. This hits a totally
+# different endpoint than yt-dlp's video download, so it is NOT subject
+# to the "Sign in to confirm you're not a bot" block, and uses only a
+# tiny fraction of the bandwidth a full download would. Use this first;
+# only fall back to download_youtube_audio() + Whisper if the video
+# has no captions available.
 
 def get_youtube_transcript(url: str):
     """
@@ -154,7 +168,9 @@ def get_youtube_transcript(url: str):
 
 def download_youtube_audio(url: str) -> str:
     """
-    Download audio from a YouTube URL.
+    Download audio-only from a YouTube URL (falls back to a proxy only
+    if the direct/unproxied attempt is blocked, to conserve proxy
+    bandwidth quota).
 
     Returns:
         Path to downloaded WAV file.
@@ -165,8 +181,12 @@ def download_youtube_audio(url: str) -> str:
         "%(title)s.%(ext)s"
     )
 
-    ydl_opts = {
-        "format": "best",
+    base_opts = {
+        # "bestaudio/best" pulls only the audio stream when one is
+        # available, instead of a full video+audio muxed format —
+        # this is a major bandwidth saving over "best", since we
+        # only need audio for Whisper anyway.
+        "format": "bestaudio/best",
         "outtmpl": output_path,
         "ffmpeg_location": os.path.dirname(FFMPEG_PATH),
         "extractor_args": {
@@ -175,7 +195,6 @@ def download_youtube_audio(url: str) -> str:
             }
         },
         "cookiefile": COOKIE_FILE,
-        "proxy": PROXY_URL,
         "postprocessors": [
             {"key": "FFmpegExtractAudio", "preferredcodec": "wav"}
         ],
@@ -184,50 +203,69 @@ def download_youtube_audio(url: str) -> str:
         "nocheckcertificate": True,
     }
 
-    try:
-        print("Downloading YouTube audio...")
-        print(f"URL: {url}")
+    last_error = None
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    # Try without the proxy first, then retry with it only if that
+    # attempt fails. This keeps proxy bandwidth spend to only the
+    # videos that actually need it (e.g. datacenter IP gets blocked).
+    proxy_attempts = [None, PROXY_URL] if PROXY_URL else [None]
 
-            info = ydl.extract_info(
-                url,
-                download=True
-            )
+    for proxy in proxy_attempts:
+        ydl_opts = {**base_opts, "proxy": proxy}
 
-            filename = ydl.prepare_filename(
-                info
-            )
+        try:
+            print(f"Downloading YouTube audio... (proxy={'yes' if proxy else 'no'})")
+            print(f"URL: {url}")
 
-            # Remove original extension
-            filename_without_extension = os.path.splitext(
-                filename
-            )[0]
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 
-            # FFmpeg creates WAV
-            wav_path = (
-                filename_without_extension
-                + ".wav"
-            )
-
-            if not os.path.exists(wav_path):
-                raise FileNotFoundError(
-                    f"WAV file was not created:\n{wav_path}"
+                info = ydl.extract_info(
+                    url,
+                    download=True
                 )
 
-            print(
-                f"YouTube audio downloaded:\n"
-                f"{wav_path}"
+                filename = ydl.prepare_filename(
+                    info
+                )
+
+                # Remove original extension
+                filename_without_extension = os.path.splitext(
+                    filename
+                )[0]
+
+                # FFmpeg creates WAV
+                wav_path = (
+                    filename_without_extension
+                    + ".wav"
+                )
+
+                if not os.path.exists(wav_path):
+                    raise FileNotFoundError(
+                        f"WAV file was not created:\n{wav_path}"
+                    )
+
+                print(
+                    f"YouTube audio downloaded:\n"
+                    f"{wav_path}"
+                )
+
+                return wav_path
+
+        except yt_dlp.utils.DownloadError as e:
+            last_error = e
+            if proxy is None and PROXY_URL:
+                print("Unproxied download failed — retrying with proxy...")
+                continue
+            raise RuntimeError(
+                "Unable to download this YouTube video.\n\n"
+                f"yt-dlp error:\n{str(e)}"
             )
 
-            return wav_path
-
-    except yt_dlp.utils.DownloadError as e:
-
-        raise RuntimeError(
-            "Unable to download this YouTube video.\n\n"
-            f"yt-dlp error:\n{str(e)}"
-        )
+    # Should not reach here, but just in case
+    raise RuntimeError(
+        "Unable to download this YouTube video.\n\n"
+        f"yt-dlp error:\n{str(last_error)}"
+    )
 
 
 # ============================================================
